@@ -1,21 +1,51 @@
+use super::helper::auto_counter;
 use eframe::egui;
+use tokio::runtime::Runtime;
+use tokio::task::JoinHandle;
 
-#[derive(Default)]
 pub struct MainApp {
     pub progress: u32,
+    runtime: Runtime,
+    counter_task: Option<JoinHandle<()>>,
 }
 
-// impl Default for MainApp {
-//     fn default() -> Self {
-//         Self { progress: 0 }
-//     }
-// }
+impl Default for MainApp {
+    fn default() -> Self {
+        Self {
+            progress: 0,
+            runtime: Runtime::new().expect("Failed to create Tokio runtime"),
+            counter_task: None,
+        }
+    }
+}
 
 impl eframe::App for MainApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ui, |ui| {
             ui.horizontal(|ui| {
-                let name_label = ui.label("Progress: ");
+                if ui
+                    .add_sized([80.20, 30.0], egui::Button::new("Start"))
+                    .clicked()
+                {
+                    self.progress += 1;
+
+                    // Start
+                    self.counter_task = Some(self.runtime.spawn(async {
+                        auto_counter().await;
+                    }));
+                }
+
+                if ui
+                    .add_sized([80.0, 30.0], egui::Button::new("Stop"))
+                    .clicked()
+                {
+                    // Stop
+                    if let Some(task) = self.counter_task.take() {
+                        task.abort();
+                    }
+                }
+
+                ui.label(self.progress.to_string());
             });
         });
     }
